@@ -9,11 +9,13 @@
 Thread::Thread(int tid, void (*func)(void),int stackSize){
 	_tid=tid;
 	_runningTimes=0;
-	_currState= Spawn;
+	_currState= Ready;
 	_sp = (address_t)_threadStack + stackSize - sizeof(address_t);
 	_pc = (address_t)func;
-	(_environment->__jmpbuf)[JB_SP] = translate_address(_sp);
+	sigsetjmp(_environment, 1);
+	(_environment->__jmpbuf)[JB_SP] = translate_address(_sp); //todo to understand what the this does
 	(_environment->__jmpbuf)[JB_PC] = translate_address(_pc);
+	sigemptyset(&_environment->__saved_mask);
 
 }
 
@@ -21,7 +23,7 @@ Thread::Thread(int tid, void (*func)(void),int stackSize){
  * @brief get the thread id
  * @return thread id
  */
-const int Thread::getThreadId(){
+int Thread::getThreadId() const{
 	return _tid;
 }
 
@@ -29,7 +31,7 @@ const int Thread::getThreadId(){
  * @brief  get the number of times the thread has been to running mode
  * @return the number of times the thread has been to running mode
  */
-const int Thread::getRunningTimes(){
+int Thread::getRunningTimes() const{
 	return _runningTimes;
 }
 
@@ -53,7 +55,7 @@ void Thread::changeStatus(State newState){
  * @brief get the state of the theard
  * @return the state of the theard
  */
-const State Thread::getStatus(){
+State Thread::getStatus() const{
 	return _currState;
 }
 
@@ -61,8 +63,8 @@ const State Thread::getStatus(){
  * get the thread evironment
  * @return the thread evironment
  */
-const sigjmp_buf  Thread::getEnvironment(){
-	return _environment;
+sigjmp_buf *Thread::getEnvironment() {
+	return &_environment;
 }
 /** A translation is required when using an address of a variable.
    Use this as a black box in your code. */

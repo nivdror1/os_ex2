@@ -70,6 +70,13 @@ void changeTimerSignal(sigaction act){
 }
 
 
+void switchThreads(){
+    // after the current thread stop running, resume all the threads depend on him
+    for (int i: dependOnThread[tid]){
+        uthread_resume(i);
+    }
+}
+
 /*
  * Description: This function initializes the thread library.
  * You may assume that this function is called before any other thread library
@@ -96,6 +103,9 @@ int uthread_init(int quantum_usecs){
     totalQuantoms = 1;
 }
 
+/**
+ * @brief releasing the assigned library memory
+ */
 void uthreadFinalizer(){
     for (int i = 0; i < MAX_THREAD_NUM; ++i)
     {
@@ -127,7 +137,11 @@ int uthread_spawn(void (*f)(void)){
     readyList.push(newThreadid);
 }
 
-
+/**
+ * @brief check if given tid is valid, return matching thread if it does.
+ * @param tid the id of the thread
+ * @return matching thread if tid is valid id, NULL otherwise
+ */
 Thread* getThread(int tid){
     if (tid < 0 || tid > MAX_THREAD_NUM){
         return NULL;
@@ -207,10 +221,6 @@ int uthread_resume(int tid){
         std::cerr << "thread library error: invalid thread id\n";
         return -1;
     }
-    for (int i: dependOnThread[tid]){
-        threadsList[i]->changeStatus(Ready);
-        readyList.push(i);
-    }
     currentThread->changeStatus(Ready);
     readyList.push(tid);
     return 0;
@@ -235,6 +245,9 @@ int uthread_sync(int tid){
         std::cerr << "thread library error: invalid thread id\n";
         return -1;
     }
+    threadsList[runningThreadid]->changeStatus(Blocked);
+    dependOnThread[tid].pushback(runningThreadid);
+    return 0;
 }
 
 

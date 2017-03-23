@@ -6,10 +6,15 @@
  * @brief a constructor
  * @param tid the id of the thread
  */
-Thread::Thread(int tid){
+Thread::Thread(int tid, void (*func)(void),int stackSize){
 	_tid=tid;
 	_runningTimes=0;
 	_currState= Spawn;
+	_sp = (address_t)_threadStack + stackSize - sizeof(address_t);
+	_pc = (address_t)func;
+	(_environment->__jmpbuf)[JB_SP] = translate_address(_sp);
+	(_environment->__jmpbuf)[JB_PC] = translate_address(_pc);
+
 }
 
 /**
@@ -50,4 +55,23 @@ void Thread::changeStatus(State newState){
  */
 const State Thread::getStatus(){
 	return _currState;
+}
+
+/**
+ * get the thread evironment
+ * @return the thread evironment
+ */
+const sigjmp_buf  Thread::getEnvironment(){
+	return _environment;
+}
+/** A translation is required when using an address of a variable.
+   Use this as a black box in your code. */
+address_t Thread::translate_address(address_t addr)
+{
+	address_t ret;
+	asm volatile("xor    %%fs:0x30,%0\n"
+			"rol    $0x11,%0\n"
+	: "=g" (ret)
+	: "0" (addr));
+	return ret;
 }

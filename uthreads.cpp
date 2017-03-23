@@ -20,6 +20,50 @@ std::queue<int> readyList;
 // in i-th index there is vector of all thread id of thread that blocked by the i-th thread
 std::vector<std::vector<int>> dependOnThread(MAX_THREAD_NUM, std::vector<int>(0));
 
+/**
+ * set the timer so it will signal SIGVTALRM after quantum_usecs of the thread exceution.
+ * @param quantum_usecs the micro second the set the timer
+ */
+void setTimer(int quantum_usecs) {
+
+    // Configure the timer to expire after the specified micro sec... */
+    timer.it_value.tv_sec = quantum_usecs;        // first time interval, seconds part
+    timer.it_value.tv_usec = 0;        // first time interval, microseconds part
+
+    // configure the timer to expire every 3 sec after that.
+    timer.it_interval.tv_sec = quantum_usecs;    // following time intervals, seconds part
+    timer.it_interval.tv_usec = 0;    // following time intervals, microseconds part
+
+    // Start a virtual timer. It counts down whenever this process is executing.
+    if (setitimer(ITIMER_VIRTUAL, &timer, NULL)) {
+        std::cerr<<"thread library error: timer set error."<<std::endl;
+    }
+
+}
+
+/**
+ * in case of reciving SIGVTALRM switch the thread
+ * @param signal the signal SIGVTALRM
+ */
+void timer_handler(int signal)
+{
+    //todo call switch threads
+}
+
+
+/**
+ * change SIGVTALRM to perform as the function timer_handler
+ * @param act a sigaction instance
+ */
+void changeTimerSignal(sigaction act){
+    // Install timer_handler as the signal handler for SIGVTALRM.
+    act.sa_handler = &timer_handler;
+    if (sigaction(SIGVTALRM, &sa,NULL) < 0) {
+        std::cerr<<"thread library error: sigaction error."<<std::endl;
+    }
+}
+
+
 /*
  * Description: This function initializes the thread library.
  * You may assume that this function is called before any other thread library
@@ -30,12 +74,17 @@ std::vector<std::vector<int>> dependOnThread(MAX_THREAD_NUM, std::vector<int>(0)
 */
 int uthread_init(int quantum_usecs){
     if (quantum_usecs <= 0){
-        fprintf(stderr, "thread library error: invalid quantum length\n");
+        std::cerr<<"thread library error: invalid quantum length"<<std::endl;
     }
+    //change the signal
+    changeTimerSignal(act);
+    //set the timer
+    setTimer(quantum_usecs);
+
     quantumLength = quantum_usecs;
     for (int i = 1; i < MAX_THREAD_NUM; ++i)
     {
-        availableTheardid.push(i);
+        availableThreadId.push(i);
     }
 }
 

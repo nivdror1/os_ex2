@@ -17,6 +17,12 @@ Thread* threadsList[MAX_THREAD_NUM];
 
 std::queue<int> readyList;
 
+std::vector<int> blockedList;
+
+int runningThreadid;
+
+int totalQuantoms;
+
 // in i-th index there is vector of all thread id of thread that blocked by the i-th thread
 std::vector<std::vector<int>> dependOnThread(MAX_THREAD_NUM, std::vector<int>(0));
 
@@ -37,6 +43,15 @@ int uthread_init(int quantum_usecs){
     {
         availableTheardid.push(i);
     }
+    runningThreadid = -1;
+    totalQuantoms = 1;
+}
+
+void uthreadFinalizer(){
+    for (int i = 0; i < MAX_THREAD_NUM; ++i)
+    {
+        delete threadsList[i];
+    }
 }
 
 /*
@@ -51,16 +66,28 @@ int uthread_init(int quantum_usecs){
 */
 int uthread_spawn(void (*f)(void)){
     if (availableTheardid.empty()){
+        std::cerr << "system error: maximum threads exceed\n";
         return -1;
     }
     int newThreadid = availableTheardid.pop();
     threadsList[newThreadid] = new Thread(newThreadid, f, STACK_SIZE);
     if (threadsList[newThreadid] == NULL){
+        std::cerr << "system error: cannot allocate new thread\n";
         return -1;
     }
     readyList.push(newThreadid);
 }
 
+
+Thread* getThread(int tid){
+    if (tid < 0 || tid > MAX_THREAD_NUM){
+        return NULL;
+    }
+    if (threadsList[tid] == NULL){
+        return NULL;
+    }
+    return threadsList[tid];
+}
 
 /*
  * Description: This function terminates the thread with ID tid and deletes
@@ -74,20 +101,19 @@ int uthread_spawn(void (*f)(void)){
  * thread is terminated, the function does not return.
 */
 int uthread_terminate(int tid){
-    if (tid < 0 || tid > MAX_THREAD_NUM){
-        return -1;
-    }
-    if (threadsList[tid] == NULL){
+    Thread* currentThread = getThread(tid);
+    if (currentThread == NULL){
+        std::cerr << "thread library error: invalid thread id\n";
         return -1;
     }
     if (tid == 0){
-        // todo release all
+        uthreadFinalizer();
+        exit(0);
     }
-    for (int i: dependOnThread[tid]){
-        threadsList[i]->changeStatus(Ready);
-    }
-    delete threadsList[tid];
+    uthread_resume(tid);
+    delete currentThread;
     threadsList[tid] = NULL;
+    if (tid == runningThreadid)
     return 0;
 }
 
@@ -101,7 +127,22 @@ int uthread_terminate(int tid){
  * effect and is not considered as an error.
  * Return value: On success, return 0. On failure, return -1.
 */
-int uthread_block(int tid);
+int uthread_block(int tid){
+    Thread* currentThread = getThread(tid);
+    if (currentThread == NULL || tid == 0){
+        std::cerr << "thread library error: invalid thread id\n";
+        return -1;
+    }
+    if (tid != runningThreadid){
+        threadsList[tid]->changeStatus(Blocked);
+    }
+    else
+    {
+        // todo switch threads
+        switchTheards();
+    }
+    return 0;
+}
 
 
 /*
@@ -111,7 +152,20 @@ int uthread_block(int tid);
  * ID tid exists it is considered as an error.
  * Return value: On success, return 0. On failure, return -1.
 */
-int uthread_resume(int tid);
+int uthread_resume(int tid){
+    Thread* currentThread = getThread(tid);
+    if (currentThread == NULL){
+        std::cerr << "thread library error: invalid thread id\n";
+        return -1;
+    }
+    for (int i: dependOnThread[tid]){
+        threadsList[i]->changeStatus(Ready);
+        readyList.push(i);
+    }
+    currentThread->changeStatus(Ready);
+    readyList.push(tid);
+    return 0;
+}
 
 
 /*
@@ -126,14 +180,22 @@ int uthread_resume(int tid);
  * the BLOCKED state a scheduling decision should be made.
  * Return value: On success, return 0. On failure, return -1.
 */
-int uthread_sync(int tid);
+int uthread_sync(int tid){
+    Thread* currentThread = getThread(tid);
+    if (currentThread == NULL){
+        std::cerr << "thread library error: invalid thread id\n";
+        return -1;
+    }
+}
 
 
 /*
  * Description: This function returns the thread ID of the calling thread.
  * Return value: The ID of the calling thread.
 */
-int uthread_get_tid();
+int uthread_get_tid(){
+    return runningThreadid;
+}
 
 
 /*
@@ -144,7 +206,9 @@ int uthread_get_tid();
  * should be increased by 1.
  * Return value: The total number of quantums.
 */
-int uthread_get_total_quantums();
+int uthread_get_total_quantums(){
+    return totalQuantoms;
+}
 
 
 /*
@@ -156,5 +220,12 @@ int uthread_get_total_quantums();
  * thread with ID tid exists it is considered as an error.
  * Return value: On success, return the number of quantums of the thread with ID tid. On failure, return -1.
 */
-int uthread_get_quantums(int tid);
+int uthread_get_quantums(int tid){
+    Thread* currentThread = getThread(tid);
+    if (currentThread == NULL){
+        std::cerr << "thread library error: invalid thread id\n";
+        return -1;
+    }
+    return currentThread->getRunningTimes();
+}
 

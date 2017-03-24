@@ -17,7 +17,6 @@ Thread::Thread(int tid, void (*func)(void),int stackSize){
 	(_environment->__jmpbuf)[JB_SP] = translate_address(_sp); //todo to understand what the this does
 	(_environment->__jmpbuf)[JB_PC] = translate_address(_pc);
 	sigemptyset(&_environment->__saved_mask);
-
 }
 
 /**

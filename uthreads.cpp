@@ -74,6 +74,7 @@ void releaseDependent(tid){
 	// after the current thread stop running, resume all the threads depend on him
 	for (int i: dependOnThread[tid]){
 		uthread_resume(i);
+        threadsList[i]->setDependency(-1);
 	}
 }
 

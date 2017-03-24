@@ -21,7 +21,7 @@ Thread::Thread(int tid, void (*func)(void),int stackSize){
 
 /**
  * @brief get the thread id
- * @return thread id
+ * @return thread ids
  */
 int Thread::getThreadId() const{
 	return _tid;

@@ -15,7 +15,7 @@ std::priority_queue<int, std::vector<int>, std::greater<int> > availableTheardid
 
 Thread* threadsList[MAX_THREAD_NUM];
 
-std::queue<int> readyList;
+std::list<int> readyList;
 
 std::vector<int> blockedList;
 
@@ -134,7 +134,7 @@ int uthread_spawn(void (*f)(void)){
         std::cerr << "system error: cannot allocate new thread\n";
         return -1;
     }
-    readyList.push(newThreadid);
+    readyList.pushback(newThreadid);
 }
 
 /**
@@ -221,8 +221,11 @@ int uthread_resume(int tid){
         std::cerr << "thread library error: invalid thread id\n";
         return -1;
     }
-    currentThread->changeStatus(Ready);
-    readyList.push(tid);
+    if (currentThread->getStatus() == Blocked){
+        blockedList.erase(std::find(blockedList.begin(), blockedList.end(), tid));
+        currentThread->changeStatus(Ready);
+        readyList.pushback(tid);
+    }
     return 0;
 }
 

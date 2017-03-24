@@ -69,11 +69,6 @@ public:
 	 */
 	int getRunningTimes() const;
 
-	/**
-	 * @brief increase the number of times the thread was at running state
-	 * @return the increased runningTimes
-	 */
-	int increaseRunning();
 
 	/**
 	 * change the state of the thread

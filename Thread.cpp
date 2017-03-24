@@ -8,7 +8,8 @@
  */
 Thread::Thread(int tid, void (*func)(void),int stackSize){
 	_tid=tid;
-	_runningTimes=_isDependent=0;
+	_runningTimes=0;
+	_isDependent=-1;
 	_currState= Ready;
 	_sp = (address_t)_threadStack + stackSize - sizeof(address_t);
 	_pc = (address_t)func;
@@ -35,14 +36,6 @@ int Thread::getRunningTimes() const{
 	return _runningTimes;
 }
 
-/**
- * @brief increase the number of times the thread was at running state
- * @return the increased runningTimes
- */
-int Thread::increaseRunning(){
-	_runningTimes+=1;
-	return _runningTimes;
-}
 
 /**
  * change the state of the thread
@@ -51,7 +44,7 @@ void Thread::changeStatus(State newState){
 	_currState=newState;
 	//if the thread is being the a state
 	if(newState==Running) {
-		increaseRunning();
+		_runningTimes+=1;
 	}
 }
 

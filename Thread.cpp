@@ -49,6 +49,10 @@ int Thread::increaseRunning(){
  */
 void Thread::changeStatus(State newState){
 	_currState=newState;
+	//if the thread is being the a state
+	if(newState==Running) {
+		increaseRunning();
+	}
 }
 
 /**

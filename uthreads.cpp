@@ -15,11 +15,11 @@ std::priority_queue<int, std::vector<int>, std::greater<int> > availableTheardid
 
 Thread* threadsList[MAX_THREAD_NUM];
 
-std::queue<int> readyList;
+std::List<int> readyList;
 
 std::vector<int> blockedList;
 
-int runningThreadid;
+int runningThreadId;
 
 int totalQuantoms;
 
@@ -53,7 +53,7 @@ void setTimer(int quantum_usecs) {
  */
 void timer_handler(int signal)
 {
-    //todo call switch threads
+    switchThreads(); //call switch threads
 }
 
 
@@ -68,13 +68,18 @@ void changeTimerSignal(sigaction act){
         std::cerr<<"thread library error: sigaction error."<<std::endl;
     }
 }
-
+/**
+ * resume the dependent threads of some thread tid
+ */
+void releaseDependent(tid){
+	// after the current thread stop running, resume all the threads depend on him
+	for (int i: dependOnThread[tid]){
+		uthread_resume(i);
+	}
+}
 
 void switchThreads(){
-    // after the current thread stop running, resume all the threads depend on him
-    for (int i: dependOnThread[tid]){
-        uthread_resume(i);
-    }
+    releaseDependent(runningThreadId);
 }
 
 /*
@@ -99,7 +104,7 @@ int uthread_init(int quantum_usecs){
     {
         availableThreadId.push(i);
     }
-    runningThreadid = -1;
+    runningThreadId = -1;
     totalQuantoms = 1;
 }
 
@@ -107,7 +112,7 @@ int uthread_init(int quantum_usecs){
  * @brief releasing the assigned library memory
  */
 void uthreadFinalizer(){
-    for (int i = 0; i < MAX_THREAD_NUM; ++i)
+    for (int i = 1; i < MAX_THREAD_NUM; ++i)
     {
         delete threadsList[i];
     }
@@ -169,14 +174,26 @@ int uthread_terminate(int tid){
         std::cerr << "thread library error: invalid thread id\n";
         return -1;
     }
+	//if the thread is the main thread and terminate process
     if (tid == 0){
-        uthreadFinalizer();
+        uthreadFinalizer(); // terminate all of the threads
         exit(0);
     }
-    uthread_resume(tid);
+	//if the thread is in blocked delete the thread from the blockedList
+	if(currentThread->getStatus()==Blocked){
+		blockedList.erase(std::find(blockedList.begin(),blockedList.end(),tid));
+	}
+	//if the thread is in ready delete the thread from the readyList
+	if(currentThread->getStatus()==Ready){
+		readyList.remove(tid);
+	}
+	if(tid==runningThreadId){
+		switchThreads();
+	}
+    releaseDependent(tid); //release the thread that are depending on it
     delete currentThread;
     threadsList[tid] = NULL;
-    if (tid == runningThreadid)
+	//todo check what we suppose to do when we do not need to return anything
     return 0;
 }
 
@@ -196,7 +213,7 @@ int uthread_block(int tid){
         std::cerr << "thread library error: invalid thread id\n";
         return -1;
     }
-    if (tid != runningThreadid){
+    if (tid != runningThreadId){
         threadsList[tid]->changeStatus(Blocked);
     }
     else
@@ -245,8 +262,8 @@ int uthread_sync(int tid){
         std::cerr << "thread library error: invalid thread id\n";
         return -1;
     }
-    threadsList[runningThreadid]->changeStatus(Blocked);
-    dependOnThread[tid].pushback(runningThreadid);
+    threadsList[runningThreadId]->changeStatus(Blocked);
+    dependOnThread[tid].pushback(runningThreadId);
     return 0;
 }
 
@@ -256,7 +273,7 @@ int uthread_sync(int tid){
  * Return value: The ID of the calling thread.
 */
 int uthread_get_tid(){
-    return runningThreadid;
+    return runningThreadId;
 }
 
 

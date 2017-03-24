@@ -18,7 +18,7 @@ typedef unsigned long address_t;
 /**
  * the set of state that the thread could be in
  */
-enum State {Ready,Running,Blocked, Terminated};
+enum State {Ready,Running,Blocked};
 
 class Thread{
 private:

@@ -8,7 +8,7 @@
  */
 Thread::Thread(int tid, void (*func)(void),int stackSize){
 	_tid=tid;
-	_runningTimes=0;
+	_runningTimes=_isDependent=0;
 	_currState= Ready;
 	_sp = (address_t)_threadStack + stackSize - sizeof(address_t);
 	_pc = (address_t)func;
@@ -80,4 +80,20 @@ address_t Thread::translate_address(address_t addr)
 	: "=g" (ret)
 	: "0" (addr));
 	return ret;
+}
+
+/**
+ * @brief get if the thread is dependent on another thread
+ * @return return if the thread is dependent on another thread
+ */
+int Thread::getDependency(){
+	return _isDependent;
+}
+
+/**
+ * set the dependency data member
+ * @param isDependent
+ */
+void Thread::setDependency(int isDependent){
+	_isDependent=isDependent;
 }

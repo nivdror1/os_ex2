@@ -47,6 +47,8 @@ private:
     Use this as a black box in your code. */
 	address_t translate_address(address_t addr);
 
+	int _isDependent;
+
 public:
 	/**
 	 * @brief a constructor
@@ -90,6 +92,18 @@ public:
 	 * @return the thread evironment
 	 */
 	sigjmp_buf* getEnvironment() ;
+
+	/**
+	 * @brief get if the thread is dependent on another thread
+	 * @return return if the thread is dependent on another thread
+	 */
+	int getDependency();
+
+	/**
+	 * set the dependency data member
+	 * @param isDependent
+	 */
+	void setDependency(int isDependent);
 
 
 };

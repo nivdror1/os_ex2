@@ -234,6 +234,8 @@ int uthread_block(int tid){
 */
 int uthread_resume(int tid){
     Thread* currentThread = getThread(tid);
+    int dependOnTid = -1;
+    int indexIndependencyList = -1;
     if (currentThread == NULL){
         std::cerr << "thread library error: invalid thread id\n";
         return -1;
@@ -242,6 +244,12 @@ int uthread_resume(int tid){
         blockedList.erase(std::find(blockedList.begin(), blockedList.end(), tid));
         currentThread->changeStatus(Ready);
         readyList.pushback(tid);
+        dependOnTid = currentThread->getDependency();
+        if (dependOnTid != -1){
+            indexIndependencyList = std::find(dependOnThread[dependOnTid]
+                                                      .begin(),dependOnThread[dependOnTid].end(),tid);
+            dependOnThread[currentThread->getDependency()].erase(indexIndependencyList);
+        }
     }
     return 0;
 }
@@ -267,6 +275,7 @@ int uthread_sync(int tid){
     }
     threadsList[runningThreadId]->changeStatus(Blocked);
     dependOnThread[tid].pushback(runningThreadId);
+    currentThread->setDependency(tid);
     return 0;
 }
 

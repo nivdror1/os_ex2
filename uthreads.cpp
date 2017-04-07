@@ -22,6 +22,8 @@ int totalQuantoms;
 
 sigaction act;
 
+sigset_t timerSet;
+
 // in i-th index there is vector of all thread id of thread that blocked by the i-th thread
 std::vector<std::vector<int>> dependOnThread(MAX_THREAD_NUM, std::vector<int>(0));
 
@@ -66,7 +68,7 @@ void timer_handler(int signal)
 void changeTimerSignal(){
     // Install timer_handler as the signal handler for SIGVTALRM.
     act.sa_handler = &timer_handler;
-    if (sigaction(SIGVTALRM, &sa,NULL) < 0) {
+    if (sigaction(SIGVTALRM, &act,NULL) < 0) {
         std::cerr<<"thread library error: sigaction error."<<std::endl;
     }
 }
@@ -128,14 +130,17 @@ int uthread_init(int quantum_usecs){
         availableThreadId.push(i);
     }
 
-    uthread_spawn(get);
+    sigaddset(&timerSet, SIGVTALRM);
+
+    // create main thread
+    uthread_spawn(NULL);
+    runningThreadId = 0;
+    totalQuantoms = 1;
+
     //change the signal
     changeTimerSignal();
     //set the timer
     setTimer(quantum_usecs);
-
-    runningThreadId = 0;
-    totalQuantoms = 1;
     return 0;
 }
 

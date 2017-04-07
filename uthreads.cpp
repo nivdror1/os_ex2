@@ -16,6 +16,8 @@ Thread* threadsList[MAX_THREAD_NUM];
 
 std::List<int> readyList;
 
+int quantum_length;
+
 int runningThreadId;
 
 int totalQuantoms;
@@ -93,7 +95,7 @@ void releaseDependent(tid){
 }
 
 void switchThreads(){
-
+    setTimer(0);
     if (threadsList[runningThreadId] != NULL)
     {
         int ret_val = sigsetjmp(*(threadsList[runningThreadId].getEnvironment()), 1);
@@ -109,6 +111,7 @@ void switchThreads(){
 	// prepare to jump to the next thread on the ready list
 	runningThreadId=readyList.popfront();
 	threadsList[runningThreadId]->changeStatus(Running);
+    setTimer(quantum_length);
 	siglongjmp(*(threadsList[runningThreadId].getEnvironment()),1);
 
 }
@@ -132,11 +135,11 @@ int uthread_init(int quantum_usecs){
     }
 
     sigaddset(&timerSet, SIGVTALRM);
-
     // create main thread
     uthread_spawn(NULL);
     runningThreadId = 0;
     totalQuantoms = 1;
+    quantum_length = quantum_usecs;
 
     //change the signal
     changeTimerSignal();
@@ -149,6 +152,7 @@ int uthread_init(int quantum_usecs){
  * @brief releasing the assigned library memory
  */
 void uthreadFinalizer(){
+    setTimer(0);
     for (int i = 1; i < MAX_THREAD_NUM; ++i)
     {
         delete threadsList[i];
@@ -166,6 +170,7 @@ void uthreadFinalizer(){
  * On failure, return -1.
 */
 int uthread_spawn(void (*f)(void)){
+    sigprocmask(SIG_SETMASK, &timerSet, NULL);
     if (availableTheardid.empty()){
         std::cerr << "system error: maximum threads exceed\n";
         return -1;
@@ -177,6 +182,8 @@ int uthread_spawn(void (*f)(void)){
         return -1;
     }
     readyList.pushback(newThreadid);
+    sigprocmask(SIG_UNBLOCK, &timerSet, NULL);
+    return newThreadid;
 }
 
 /**
@@ -206,6 +213,7 @@ Thread* getThread(int tid){
  * thread is terminated, the function does not return.
 */
 int uthread_terminate(int tid){
+    sigprocmask(SIG_SETMASK, &timerSet, NULL);
     Thread* currentThread = getThread(tid);
     if (currentThread == NULL){
         std::cerr << "thread library error: invalid thread id\n";
@@ -225,8 +233,10 @@ int uthread_terminate(int tid){
     threadsList[tid] = NULL;
     availableTheardid.push(tid);//add it to the available thread list
 	if(tid==runningThreadId){
+        sigprocmask(SIG_UNBLOCK, &timerSet, NULL);
 		switchThreads();
 	}
+    sigprocmask(SIG_UNBLOCK, &timerSet, NULL);
     return 0;
 }
 
@@ -241,6 +251,7 @@ int uthread_terminate(int tid){
  * Return value: On success, return 0. On failure, return -1.
 */
 int uthread_block(int tid){
+    sigprocmask(SIG_SETMASK, &timerSet, NULL);
     Thread* currentThread = getThread(tid);
     if (currentThread == NULL || tid == 0){
         std::cerr << "thread library error: invalid thread id\n";
@@ -255,8 +266,10 @@ int uthread_block(int tid){
     }
     else if(threadState ==Running)
     {
+        sigprocmask(SIG_UNBLOCK, &timerSet, NULL);
         switchThreads();
     }
+    sigprocmask(SIG_UNBLOCK, &timerSet, NULL);
     return 0;
 }
 
@@ -269,6 +282,7 @@ int uthread_block(int tid){
  * Return value: On success, return 0. On failure, return -1.
 */
 int uthread_resume(int tid){
+    sigprocmask(SIG_SETMASK, &timerSet, NULL);
     Thread* currentThread = getThread(tid);
     int dependOnTid = -1;
     if (currentThread == NULL){
@@ -283,6 +297,7 @@ int uthread_resume(int tid){
             currentThread->changeStatus(Sync);
         }
     }
+    sigprocmask(SIG_UNBLOCK, &timerSet, NULL);
     return 0;
 }
 
@@ -300,6 +315,7 @@ int uthread_resume(int tid){
  * Return value: On success, return 0. On failure, return -1.
 */
 int uthread_sync(int tid){
+    sigprocmask(SIG_SETMASK, &timerSet, NULL);
 	Thread* currentThread = getThread(tid);
 	if (currentThread == NULL||tid==runningThreadId || tid == 0){
 		std::cerr << "thread library error: invalid thread id\n";
@@ -308,6 +324,7 @@ int uthread_sync(int tid){
 	threadsList[runningThreadId]->changeStatus(Sync);
 	dependOnThread[tid].pushback(runningThreadId);
 	currentThread->setDependency(tid);
+    sigprocmask(SIG_UNBLOCK, &timerSet, NULL);
 	switchThreads();
 	return 0;
 }

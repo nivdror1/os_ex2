@@ -284,17 +284,17 @@ int uthread_resume(int tid){
  * Return value: On success, return 0. On failure, return -1.
 */
 int uthread_sync(int tid){
-    Thread* currentThread = getThread(tid);
-    if (currentThread == NULL){
-        std::cerr << "thread library error: invalid thread id\n";
-        return -1;
-    }
-    threadsList[runningThreadId]->changeStatus(Blocked);
-    dependOnThread[tid].pushback(runningThreadId);
-    currentThread->setDependency(tid);
+	Thread* currentThread = getThread(tid);
+	if (currentThread == NULL||tid==runningThreadId){
+		std::cerr << "thread library error: invalid thread id\n";
+		return -1;
+	}
+	threadsList[runningThreadId]->changeStatus(Blocked);
+	dependOnThread[tid].pushback(runningThreadId);
+	currentThread->setDependency(tid);
 	switchThreads();
 	readyList.popback();
-    return 0;
+	return 0;
 }
 
 

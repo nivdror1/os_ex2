@@ -22,8 +22,9 @@ int totalQuantoms;
 
 sigaction act;
 
-sigset_t timerSet;
+struct itimerval timer;
 
+sigset_t timerSet;
 // in i-th index there is vector of all thread id of thread that blocked by the i-th thread
 std::vector<std::vector<int>> dependOnThread(MAX_THREAD_NUM, std::vector<int>(0));
 

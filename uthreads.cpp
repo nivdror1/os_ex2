@@ -121,18 +121,22 @@ void switchThreads(){
 int uthread_init(int quantum_usecs){
     if (quantum_usecs <= 0){
         std::cerr<<"thread library error: invalid quantum length"<<std::endl;
+        return -1;
     }
+    for (int i = 0; i < MAX_THREAD_NUM; ++i)
+    {
+        availableThreadId.push(i);
+    }
+
+    uthread_spawn(get);
     //change the signal
     changeTimerSignal();
     //set the timer
     setTimer(quantum_usecs);
 
-    for (int i = 1; i < MAX_THREAD_NUM; ++i)
-    {
-        availableThreadId.push(i);
-    }
-    runningThreadId = -1;
+    runningThreadId = 0;
     totalQuantoms = 1;
+    return 0;
 }
 
 /**
@@ -291,7 +295,7 @@ int uthread_resume(int tid){
 */
 int uthread_sync(int tid){
 	Thread* currentThread = getThread(tid);
-	if (currentThread == NULL||tid==runningThreadId){
+	if (currentThread == NULL||tid==runningThreadId || tid == 0){
 		std::cerr << "thread library error: invalid thread id\n";
 		return -1;
 	}
@@ -299,7 +303,6 @@ int uthread_sync(int tid){
 	dependOnThread[tid].pushback(runningThreadId);
 	currentThread->setDependency(tid);
 	switchThreads();
-	readyList.popback();
 	return 0;
 }
 

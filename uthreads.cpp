@@ -42,7 +42,7 @@ void setTimer(int quantum_usecs) {
     timer.it_interval.tv_sec = quantum_usecs;    // following time intervals, seconds part
     timer.it_interval.tv_usec = 0;    // following time intervals, microseconds part
 
-    // Start a virtual timer. It counts down whenever this process is executing.
+    // Start a virtual timer. It counts down whenever this process is executing..
     if (setitimer(ITIMER_VIRTUAL, &timer, NULL)) {
         std::cerr<<"thread library error: timer set error."<<std::endl;
     }

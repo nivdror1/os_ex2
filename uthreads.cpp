@@ -2,19 +2,25 @@
 // Created by ido.shachar on 3/23/17.
 //
 
+
+
+#include <stdlib.h>
+#include <functional>
+#include <vector>
 #include <queue>
-#include <stdio.h>
 #include "uthreads.h"
 #include "Thread.h"
+#include <list>
+#include <iostream>
 
 //---------------------- global variables------------------------------
 
 
-std::priority_queue<int, std::vector<int>, std::greater<int> > availableTheardid;
+std::priority_queue<int, std::vector<int>, std::greater<int> > availableThreadId;
 
 Thread* threadsList[MAX_THREAD_NUM];
 
-std::List<int> readyList;
+std::list<int> readyList;
 
 int quantum_length;
 
@@ -22,7 +28,7 @@ int runningThreadId;
 
 int totalQuantoms;
 
-sigaction act;
+struct sigaction act;
 
 struct itimerval timer;
 
@@ -51,6 +57,47 @@ void setTimer(int quantum_usecs) {
 
 }
 
+void updateThreadToReady(int tid)
+{
+    threadsList[tid]->changeStatus(Ready);
+    readyList.push_back(tid);
+}
+
+/**
+ * resume the dependent threads of some thread tid
+ */
+void releaseDependent(int tid){
+    // after the current thread stop running, resume all the threads depend on him
+    for (int i: dependOnThread[tid]){
+        updateThreadToReady(i);
+        threadsList[i]->setDependency(-1);
+    }
+    dependOnThread[tid].clear();
+}
+
+void switchThreads(){
+    setTimer(0);
+    if (threadsList[runningThreadId] != NULL)
+    {
+        int ret_val = sigsetjmp(*(threadsList[runningThreadId]->getEnvironment()), 1);
+        printf("SWITCH: ret_val=%d, running id=%d\n", ret_val, runningThreadId);
+        if (ret_val == 1)
+        {
+            return;
+        }
+        //release all of his dependencies threads
+        releaseDependent(runningThreadId);
+    }
+
+    // prepare to jump to the next thread on the ready list
+    runningThreadId=readyList.front();
+    readyList.pop_front();
+    threadsList[runningThreadId]->changeStatus(Running);
+    setTimer(quantum_length);
+    siglongjmp(*(threadsList[runningThreadId]->getEnvironment()),1);
+
+}
+
 /**
  * in case of reciving SIGVTALRM switch the thread
  * @param signal the signal SIGVTALRM
@@ -58,7 +105,7 @@ void setTimer(int quantum_usecs) {
 void timer_handler(int signal)
 {
 	//move the running thread the end of the ready list
-	readyList.pushback(runningThreadId);
+	readyList.push_back(runningThreadId);
 	threadsList[runningThreadId]->changeStatus(Ready);
     switchThreads(); //call switch threads
 }
@@ -76,45 +123,11 @@ void changeTimerSignal(){
     }
 }
 
-void updateThreadToReady(int tid)
-{
-    threadsList[tid]->changeStatus(Ready);
-    readyList.pushback(tid);
-}
 
-/**
- * resume the dependent threads of some thread tid
- */
-void releaseDependent(tid){
-	// after the current thread stop running, resume all the threads depend on him
-	for (int i: dependOnThread[tid]){
-		updateThreadToReady(i);
-        threadsList[i]->setDependency(-1);
-	}
-    dependOnThread[tid].clear();
-}
 
-void switchThreads(){
-    setTimer(0);
-    if (threadsList[runningThreadId] != NULL)
-    {
-        int ret_val = sigsetjmp(*(threadsList[runningThreadId].getEnvironment()), 1);
-        printf("SWITCH: ret_val=%d, running id=%d\n", ret_val, runningThreadId);
-        if (ret_val == 1)
-        {
-            return;
-        }
-        //release all of his dependencies threads
-        releaseDependent(runningThreadId);
-    }
 
-	// prepare to jump to the next thread on the ready list
-	runningThreadId=readyList.popfront();
-	threadsList[runningThreadId]->changeStatus(Running);
-    setTimer(quantum_length);
-	siglongjmp(*(threadsList[runningThreadId].getEnvironment()),1);
 
-}
+
 
 /*
  * Description: This function initializes the thread library.
@@ -171,17 +184,18 @@ void uthreadFinalizer(){
 */
 int uthread_spawn(void (*f)(void)){
     sigprocmask(SIG_SETMASK, &timerSet, NULL);
-    if (availableTheardid.empty()){
+    if (availableThreadId.empty()){
         std::cerr << "system error: maximum threads exceed\n";
         return -1;
     }
-    int newThreadid = availableTheardid.pop();
+    int newThreadid = availableThreadId.top();
+    availableThreadId.pop();
     threadsList[newThreadid] = new (std::nothrow)Thread(newThreadid, f, STACK_SIZE);
     if (threadsList[newThreadid] == NULL){
         std::cerr << "system error: cannot allocate new thread\n";
         return -1;
     }
-    readyList.pushback(newThreadid);
+    readyList.push_back(newThreadid);
     sigprocmask(SIG_UNBLOCK, &timerSet, NULL);
     return newThreadid;
 }
@@ -231,7 +245,7 @@ int uthread_terminate(int tid){
     releaseDependent(tid); //release the thread that are depending on it
     delete currentThread;
     threadsList[tid] = NULL;
-    availableTheardid.push(tid);//add it to the available thread list
+    availableThreadId.push(tid);//add it to the available thread list
 	if(tid==runningThreadId){
         sigprocmask(SIG_UNBLOCK, &timerSet, NULL);
 		switchThreads();
@@ -258,7 +272,7 @@ int uthread_block(int tid){
         return -1;
     }
 
-    Thread::State threadState = currentThread->getStatus();
+    State threadState = currentThread->getStatus();
     currentThread->changeStatus(Blocked);
 	//if the thread is blocked while in ready state
     if (threadState ==Ready){
@@ -322,7 +336,7 @@ int uthread_sync(int tid){
 		return -1;
 	}
 	threadsList[runningThreadId]->changeStatus(Sync);
-	dependOnThread[tid].pushback(runningThreadId);
+	dependOnThread[tid].push_back(runningThreadId);
 	currentThread->setDependency(tid);
     sigprocmask(SIG_UNBLOCK, &timerSet, NULL);
 	switchThreads();

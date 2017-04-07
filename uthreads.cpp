@@ -78,6 +78,7 @@ void releaseDependent(tid){
 	for (int i: dependOnThread[tid]){
 		uthread_resume(i);
 	}
+    dependOnThread[tid].clear();
 }
 
 void switchThreads(){
@@ -260,13 +261,6 @@ int uthread_resume(int tid){
     if (currentThread->getStatus() == Blocked){
         currentThread->changeStatus(Ready);
         readyList.pushback(tid);
-	    //todo if thread t3 resume another thread t2 that is dependent on a thread t1
-        dependOnTid = currentThread->getDependency();
-        if (dependOnTid != -1){
-            indexInDependencyList = std::find(dependOnThread[dependOnTid]
-                                                      .begin(),dependOnThread[dependOnTid].end(),tid);
-            dependOnThread[dependOnTid].erase(indexInDependencyList);
-        }
     }
     return 0;
 }

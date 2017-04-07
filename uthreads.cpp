@@ -70,13 +70,21 @@ void changeTimerSignal(){
         std::cerr<<"thread library error: sigaction error."<<std::endl;
     }
 }
+
+void updateThreadToReady(int tid)
+{
+    threadsList[tid]->changeStatus(Ready);
+    readyList.pushback(tid);
+}
+
 /**
  * resume the dependent threads of some thread tid
  */
 void releaseDependent(tid){
 	// after the current thread stop running, resume all the threads depend on him
 	for (int i: dependOnThread[tid]){
-		uthread_resume(i);
+		updateThreadToReady(i);
+        threadsList[i]->setDependency(-1);
 	}
     dependOnThread[tid].clear();
 }
@@ -253,14 +261,17 @@ int uthread_block(int tid){
 int uthread_resume(int tid){
     Thread* currentThread = getThread(tid);
     int dependOnTid = -1;
-    int indexInDependencyList = -1;
     if (currentThread == NULL){
         std::cerr << "thread library error: invalid thread id\n";
         return -1;
     }
     if (currentThread->getStatus() == Blocked){
-        currentThread->changeStatus(Ready);
-        readyList.pushback(tid);
+        if (currentThread->getDependency() == -1){
+            updateThreadToReady(tid);
+        }
+        else {
+            currentThread->changeStatus(Sync);
+        }
     }
     return 0;
 }
@@ -284,7 +295,7 @@ int uthread_sync(int tid){
 		std::cerr << "thread library error: invalid thread id\n";
 		return -1;
 	}
-	threadsList[runningThreadId]->changeStatus(Blocked);
+	threadsList[runningThreadId]->changeStatus(Sync);
 	dependOnThread[tid].pushback(runningThreadId);
 	currentThread->setDependency(tid);
 	switchThreads();

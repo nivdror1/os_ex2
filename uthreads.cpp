@@ -52,6 +52,9 @@ void setTimer(int quantum_usecs) {
  */
 void timer_handler(int signal)
 {
+	//move the running thread the end of the ready list
+	readyList.pushback(runningThreadId);
+	threadsList[runningThreadId]->changeStatus(Ready);
     switchThreads(); //call switch threads
 }
 
@@ -74,7 +77,6 @@ void releaseDependent(tid){
 	// after the current thread stop running, resume all the threads depend on him
 	for (int i: dependOnThread[tid]){
 		uthread_resume(i);
-        threadsList[i]->setDependency(-1);
 	}
 }
 
@@ -85,9 +87,7 @@ void switchThreads(){
 	if (ret_val == 1) {
 		return;
 	}
-	//move the running thread the end of the ready list
-	readyList.pushback(runningThreadId);
-	threadsList[runningThreadId]->changeStatus(Ready);
+	//release all of his dependencies threads
 	releaseDependent(runningThreadId);
 
 	// prepare to jump to the next thread on the ready list

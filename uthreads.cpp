@@ -82,13 +82,17 @@ void releaseDependent(tid){
 
 void switchThreads(){
 
-	int ret_val = sigsetjmp(*(threadsList[runningThreadId].getEnvironment()),1);
-	printf("SWITCH: ret_val=%d, running id=%d\n", ret_val,runningThreadId);
-	if (ret_val == 1) {
-		return;
-	}
-	//release all of his dependencies threads
-	releaseDependent(runningThreadId);
+    if (threadsList[runningThreadId] != NULL)
+    {
+        int ret_val = sigsetjmp(*(threadsList[runningThreadId].getEnvironment()), 1);
+        printf("SWITCH: ret_val=%d, running id=%d\n", ret_val, runningThreadId);
+        if (ret_val == 1)
+        {
+            return;
+        }
+        //release all of his dependencies threads
+        releaseDependent(runningThreadId);
+    }
 
 	// prepare to jump to the next thread on the ready list
 	runningThreadId=readyList.popfront();
@@ -197,15 +201,13 @@ int uthread_terminate(int tid){
 	if(currentThread->getStatus()==Ready){
 		readyList.remove(tid);
 	}
-	if(tid==runningThreadId){
-		switchThreads();
-		readyList.popback();
-	}
     releaseDependent(tid); //release the thread that are depending on it
     delete currentThread;
     threadsList[tid] = NULL;
-	availableTheardid.push(tid);//add it to the available thread list
-	//todo check what we suppose to do when we do not need to return anything
+    availableTheardid.push(tid);//add it to the available thread list
+	if(tid==runningThreadId){
+		switchThreads();
+	}
     return 0;
 }
 
@@ -226,17 +228,16 @@ int uthread_block(int tid){
         return -1;
     }
 
+    Thread::State threadState = currentThread->getStatus();
+    currentThread->changeStatus(Blocked);
 	//if the thread is blocked while in ready state
-    if (currentThread->getStatus() ==Ready){
+    if (threadState ==Ready){
 	    readyList.remove(tid);
     }
-    else if(currentThread->getStatus() ==Running)
+    else if(threadState ==Running)
     {
-        // todo switch threads
         switchThreads();
-	    readyList.popback();
     }
-	currentThread->changeStatus(Blocked);
     return 0;
 }
 

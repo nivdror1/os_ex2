@@ -38,7 +38,7 @@ private:
 	address_t _pc;
 
 	/** the thread stack*/
-	char _threadStack[STACK_SIZE];
+	char* _threadStack;
 
 	/** the enviroment to save theard stack*/
 	sigjmp_buf _environment;
@@ -56,6 +56,11 @@ public:
 	 * @param func the function of the thread
 	 */
 	Thread(int tid, void (*func)(void),int stackSize);
+
+	/**
+	 * a desctructor
+	 */
+	~Thread();
 
 	/**
 	 * @brief get the thread id

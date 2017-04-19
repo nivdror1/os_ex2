@@ -13,6 +13,7 @@
 #include <list>
 #include <iostream>
 
+#define MILLION 1000000
 //---------------------- global variables------------------------------
 
 
@@ -28,6 +29,8 @@ int runningThreadId;
 
 int totalQuantoms;
 
+int beforeSwitching=1;
+
 struct sigaction act;
 
 struct itimerval timer;
@@ -36,6 +39,8 @@ sigset_t timerSet;
 // in i-th index there is vector of all thread id of thread that blocked by the i-th thread
 std::vector<std::vector<int>> dependOnThread(MAX_THREAD_NUM, std::vector<int>(0));
 
+void uthreadFinalizer();
+
 /**
  * set the timer so it will signal SIGVTALRM after quantum_usecs of the thread exceution.
  * @param quantum_usecs the micro second the set the timer
@@ -43,18 +48,28 @@ std::vector<std::vector<int>> dependOnThread(MAX_THREAD_NUM, std::vector<int>(0)
 void setTimer(int quantum_usecs) {
 
     // Configure the timer to expire after the specified micro sec... */
-    timer.it_value.tv_sec = quantum_usecs;        // first time interval, seconds part
-    timer.it_value.tv_usec = 0;        // first time interval, microseconds part
+    timer.it_value.tv_sec = quantum_usecs/MILLION;        // first time interval, seconds part
+    timer.it_value.tv_usec = quantum_usecs%MILLION;        // first time interval, microseconds part
 
     // configure the timer to expire every 3 sec after that.
-    timer.it_interval.tv_sec = quantum_usecs;    // following time intervals, seconds part
-    timer.it_interval.tv_usec = 0;    // following time intervals, microseconds part
+    timer.it_interval.tv_sec = quantum_usecs/MILLION;    // following time intervals, seconds part
+    timer.it_interval.tv_usec = quantum_usecs%MILLION;    // following time intervals, microseconds part
 
     // Start a virtual timer. It counts down whenever this process is executing..
     if (setitimer(ITIMER_VIRTUAL, &timer, NULL)) {
+	    uthreadFinalizer();
         std::cerr<<"thread library error: timer set error."<<std::endl;
+	    exit(1);
     }
 
+}
+
+void updateTotalQuantoms(){
+	if(beforeSwitching==0){
+		totalQuantoms++; //incrementing the total quantoms if it isn't the first switch
+	}
+	beforeSwitching=0;
+	std::cout<<uthread_get_total_quantums()<<std::endl;
 }
 
 void updateThreadToReady(int tid)
@@ -93,10 +108,6 @@ void switchThreads(){
     runningThreadId=readyList.front();
     readyList.pop_front();
     threadsList[runningThreadId]->changeStatus(Running);
-    std::list<int>::iterator i;
-    for( i = readyList.begin(); i != readyList.end(); ++i)
-        std::cout << *i << " ";
-    std::cout << std::endl;
     setTimer(quantum_length);
     siglongjmp(*(threadsList[runningThreadId]->getEnvironment()),1);
 
@@ -111,6 +122,8 @@ void timer_handler(int signal)
 	//move the running thread the end of the ready list
 	readyList.push_back(runningThreadId);
 	threadsList[runningThreadId]->changeStatus(Ready);
+	//update the total quantoms
+	updateTotalQuantoms();
     switchThreads(); //call switch threads
 }
 
@@ -149,6 +162,9 @@ int uthread_init(int quantum_usecs){
     sigaddset(&timerSet, SIGVTALRM);
     // create main thread
     uthread_spawn(NULL);
+
+
+	threadsList[0]->changeStatus(Running);
     runningThreadId = 0;
     totalQuantoms = 1;
     quantum_length = quantum_usecs;
@@ -250,6 +266,8 @@ int uthread_terminate(int tid){
     availableThreadId.push(tid);//add it to the available thread list
 	if(tid==runningThreadId){
         sigprocmask(SIG_UNBLOCK, &timerSet, NULL);
+		//update the total quantoms
+		updateTotalQuantoms();
 		switchThreads();
 	}
     sigprocmask(SIG_UNBLOCK, &timerSet, NULL);
@@ -269,9 +287,12 @@ int uthread_terminate(int tid){
 int uthread_block(int tid){
     sigprocmask(SIG_SETMASK, &timerSet, NULL);
     Thread* currentThread = getThread(tid);
-    if (currentThread == NULL || tid == 0){
+    if (currentThread == NULL ){
         std::cerr << "thread library error: invalid thread id\n";
         return -1;
+    }else if(tid==0){
+	    std::cerr << "thread library error: it's illegal to block the main thread\n";
+	    return -1;
     }
 
     State threadState = currentThread->getStatus();
@@ -283,7 +304,9 @@ int uthread_block(int tid){
     else if(threadState ==Running)
     {
         sigprocmask(SIG_UNBLOCK, &timerSet, NULL);
-        switchThreads();
+	    //update the total quantoms
+	    updateTotalQuantoms();
+	    switchThreads();
     }
     sigprocmask(SIG_UNBLOCK, &timerSet, NULL);
     return 0;
@@ -339,7 +362,9 @@ int uthread_sync(int tid){
 	threadsList[runningThreadId]->changeStatus(Sync);
 	dependOnThread[tid].push_back(runningThreadId);
 	currentThread->setDependency(tid);
-    sigprocmask(SIG_UNBLOCK, &timerSet, NULL);
+	//update the total quantoms
+	updateTotalQuantoms();
+	sigprocmask(SIG_UNBLOCK, &timerSet, NULL);
 	switchThreads();
 	return 0;
 }

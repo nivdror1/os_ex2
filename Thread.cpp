@@ -9,11 +9,8 @@
  * @brief a constructor
  * @param tid the id of the thread
  */
-Thread::Thread(int tid, void (*func)(void),int stackSize){
-	_tid=tid;
-	_runningTimes=0;
-	_isDependent=-1;
-	_currState= Ready;
+Thread::Thread(int tid, void (*func)(void),int stackSize):_tid(tid),_runningTimes(0),_isDependent(-1)
+		,_currState(Running){
 	_threadStack= new char[stackSize];
 	_sp = (address_t)_threadStack + stackSize - sizeof(address_t);
 	_pc = (address_t)func;
@@ -21,7 +18,6 @@ Thread::Thread(int tid, void (*func)(void),int stackSize){
 	(_environment->__jmpbuf)[JB_SP] = translate_address(_sp); //todo to understand what the this does
 	(_environment->__jmpbuf)[JB_PC] = translate_address(_pc);
 	sigemptyset(&_environment->__saved_mask);
-
 }
 
 /**

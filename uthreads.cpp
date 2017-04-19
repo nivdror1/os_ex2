@@ -93,6 +93,10 @@ void switchThreads(){
     runningThreadId=readyList.front();
     readyList.pop_front();
     threadsList[runningThreadId]->changeStatus(Running);
+    std::list<int>::iterator i;
+    for( i = readyList.begin(); i != readyList.end(); ++i)
+        std::cout << *i << " ";
+    std::cout << std::endl;
     setTimer(quantum_length);
     siglongjmp(*(threadsList[runningThreadId]->getEnvironment()),1);
 
@@ -122,11 +126,6 @@ void changeTimerSignal(){
         std::cerr<<"thread library error: sigaction error."<<std::endl;
     }
 }
-
-
-
-
-
 
 
 /*
@@ -195,7 +194,10 @@ int uthread_spawn(void (*f)(void)){
         std::cerr << "system error: cannot allocate new thread\n";
         return -1;
     }
-    readyList.push_back(newThreadid);
+    if (newThreadid!=0)
+    {
+        readyList.push_back(newThreadid);
+    }
     sigprocmask(SIG_UNBLOCK, &timerSet, NULL);
     return newThreadid;
 }
@@ -298,7 +300,6 @@ int uthread_block(int tid){
 int uthread_resume(int tid){
     sigprocmask(SIG_SETMASK, &timerSet, NULL);
     Thread* currentThread = getThread(tid);
-    int dependOnTid = -1;
     if (currentThread == NULL){
         std::cerr << "thread library error: invalid thread id\n";
         return -1;

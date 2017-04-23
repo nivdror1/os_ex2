@@ -64,13 +64,7 @@ void setTimer(int quantum_usecs) {
 
 }
 
-void updateTotalQuantoms(){
-    if(beforeSwitching==0){
-        totalQuantoms++; //incrementing the total quantoms if it isn't the first switch
-    }
-    beforeSwitching=0;
-    std::cout<<uthread_get_total_quantums()<<std::endl;
-}
+
 
 void updateThreadToReady(int tid)
 {
@@ -99,7 +93,9 @@ int changeSignalStatus(int signalStatus){
 void releaseDependent(int tid){
     // after the current thread stop running, resume all the threads depend on him
     for (int i: dependOnThread[tid]){
-        updateThreadToReady(i);
+        if (threadsList[i]->getStatus() == Sync) {
+            updateThreadToReady(i);
+        }
         threadsList[i]->setDependency(-1);
     }
     dependOnThread[tid].clear();
@@ -110,7 +106,7 @@ void switchThreads(){
     if (threadsList[runningThreadId] != NULL)
     {
         int ret_val = sigsetjmp(*(threadsList[runningThreadId]->getEnvironment()), 1);
-        printf("SWITCH: ret_val=%d, running id=%d\n", ret_val, runningThreadId);
+        //printf("SWITCH: ret_val=%d, running id=%d\n", ret_val, runningThreadId);
         if (ret_val == 1)
         {
             return;

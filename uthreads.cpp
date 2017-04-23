@@ -101,12 +101,15 @@ void releaseDependent(int tid){
     dependOnThread[tid].clear();
 }
 
+/**
+ * swtich between the current running thread and the next thread that should run, update quantoms
+ * calculation and release threads that depend on the current running thread.
+ */
 void switchThreads(){
     setTimer(0);
     if (threadsList[runningThreadId] != NULL)
     {
         int ret_val = sigsetjmp(*(threadsList[runningThreadId]->getEnvironment()), 1);
-        //printf("SWITCH: ret_val=%d, running id=%d\n", ret_val, runningThreadId);
         if (ret_val == 1)
         {
             return;
@@ -134,8 +137,6 @@ void timer_handler(int signal)
     //move the running thread the end of the ready list
     readyList.push_back(runningThreadId);
     threadsList[runningThreadId]->changeStatus(Ready);
-    //update the total quantoms
-    //updateTotalQuantoms();
     switchThreads(); //call switch threads
 }
 
@@ -277,8 +278,6 @@ int uthread_terminate(int tid){
     availableThreadId.push(tid);//add it to the available thread list
     if(tid==runningThreadId){
         changeSignalStatus(SIG_UNBLOCK);
-        //update the total quantoms
-        //updateTotalQuantoms();
         switchThreads();
     }
     changeSignalStatus(SIG_UNBLOCK);
@@ -368,8 +367,6 @@ int uthread_sync(int tid){
     threadsList[runningThreadId]->changeStatus(Sync);
     dependOnThread[tid].push_back(runningThreadId);
     threadsList[runningThreadId]->setDependency(tid);
-    //update the total quantoms
-    //updateTotalQuantoms();
     changeSignalStatus(SIG_UNBLOCK);
     switchThreads();
     return 0;

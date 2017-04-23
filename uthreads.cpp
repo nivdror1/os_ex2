@@ -57,25 +57,40 @@ void setTimer(int quantum_usecs) {
 
     // Start a virtual timer. It counts down whenever this process is executing..
     if (setitimer(ITIMER_VIRTUAL, &timer, NULL)) {
-	    uthreadFinalizer();
+        uthreadFinalizer();
         std::cerr<<"thread library error: timer set error."<<std::endl;
-	    exit(1);
+        exit(1);
     }
 
 }
 
 void updateTotalQuantoms(){
-	if(beforeSwitching==0){
-		totalQuantoms++; //incrementing the total quantoms if it isn't the first switch
-	}
-	beforeSwitching=0;
-	std::cout<<uthread_get_total_quantums()<<std::endl;
+    if(beforeSwitching==0){
+        totalQuantoms++; //incrementing the total quantoms if it isn't the first switch
+    }
+    beforeSwitching=0;
+    std::cout<<uthread_get_total_quantums()<<std::endl;
 }
 
 void updateThreadToReady(int tid)
 {
     threadsList[tid]->changeStatus(Ready);
     readyList.push_back(tid);
+}
+
+/**
+ * block or unblock the SIGVTALRM signal
+ * @param signalStatus an int represent whether to block or to unblock the signal
+ * @return -1 if some error had occured else return 0
+ */
+int changeSignalStatus(int signalStatus){
+    int err=sigemptyset(&timerSet);
+    err+=sigaddset(&timerSet,SIGVTALRM);
+    err+=sigprocmask(signalStatus, &timerSet, NULL);
+    if(err<0){
+        std::cerr<<"could not block/unblock the signal"<<std::endl;
+    }
+    return 0;
 }
 
 /**
@@ -95,7 +110,7 @@ void switchThreads(){
     if (threadsList[runningThreadId] != NULL)
     {
         int ret_val = sigsetjmp(*(threadsList[runningThreadId]->getEnvironment()), 1);
-        //printf("SWITCH: ret_val=%d, running id=%d\n", ret_val, runningThreadId);
+        printf("SWITCH: ret_val=%d, running id=%d\n", ret_val, runningThreadId);
         if (ret_val == 1)
         {
             return;
@@ -108,7 +123,7 @@ void switchThreads(){
     runningThreadId=readyList.front();
     readyList.pop_front();
     threadsList[runningThreadId]->changeStatus(Running);
-	totalQuantoms++;
+    totalQuantoms++;
     setTimer(quantum_length);
     siglongjmp(*(threadsList[runningThreadId]->getEnvironment()),1);
 
@@ -120,11 +135,11 @@ void switchThreads(){
  */
 void timer_handler(int signal)
 {
-	//move the running thread the end of the ready list
-	readyList.push_back(runningThreadId);
-	threadsList[runningThreadId]->changeStatus(Ready);
-	//update the total quantoms
-	//updateTotalQuantoms();
+    //move the running thread the end of the ready list
+    readyList.push_back(runningThreadId);
+    threadsList[runningThreadId]->changeStatus(Ready);
+    //update the total quantoms
+    //updateTotalQuantoms();
     switchThreads(); //call switch threads
 }
 
@@ -165,7 +180,7 @@ int uthread_init(int quantum_usecs){
     uthread_spawn(NULL);
 
 
-	threadsList[0]->changeStatus(Running);
+    threadsList[0]->changeStatus(Running);
     runningThreadId = 0;
     totalQuantoms = 1;
     quantum_length = quantum_usecs;
@@ -199,7 +214,7 @@ void uthreadFinalizer(){
  * On failure, return -1.
 */
 int uthread_spawn(void (*f)(void)){
-    sigprocmask(SIG_SETMASK, &timerSet, NULL);
+    changeSignalStatus(SIG_BLOCK);
     if (availableThreadId.empty()){
         std::cerr << "system error: maximum threads exceed\n";
         return -1;
@@ -215,7 +230,7 @@ int uthread_spawn(void (*f)(void)){
     {
         readyList.push_back(newThreadid);
     }
-    sigprocmask(SIG_UNBLOCK, &timerSet, NULL);
+    changeSignalStatus(SIG_UNBLOCK);
     return newThreadid;
 }
 
@@ -224,14 +239,14 @@ int uthread_spawn(void (*f)(void)){
  * @param tid the id of the thread
  * @return matching thread if tid is valid id, NULL otherwise
  */
-Thread* getThread(int tid){
+int checkTid(int tid){
     if (tid < 0 || tid > MAX_THREAD_NUM){
-        return NULL;
+        return -1;
     }
     if (threadsList[tid] == NULL){
-        return NULL;
+        return -1;
     }
-    return threadsList[tid];
+    return tid;
 }
 
 /*
@@ -246,32 +261,31 @@ Thread* getThread(int tid){
  * thread is terminated, the function does not return.
 */
 int uthread_terminate(int tid){
-    sigprocmask(SIG_SETMASK, &timerSet, NULL);
-    Thread* currentThread = getThread(tid);
-    if (currentThread == NULL){
-        std::cerr << "thread library error: invalid thread id\n";
+    changeSignalStatus(SIG_BLOCK);
+    if (checkTid(tid) == -1){
+        std::cerr << "thread library error: invalid thread id in terminate\n";
         return -1;
     }
-	//if the thread is the main thread and terminate process
+    //if the thread is the main thread and terminate process
     if (tid == 0){
         uthreadFinalizer(); // terminate all of the threads
         exit(0);
     }
-	//if the thread is in ready delete the thread from the readyList
-	if(currentThread->getStatus()==Ready){
-		readyList.remove(tid);
-	}
+    //if the thread is in ready delete the thread from the readyList
+    if(threadsList[tid]->getStatus()==Ready){
+        readyList.remove(tid);
+    }
     releaseDependent(tid); //release the thread that are depending on it
-    delete currentThread;
+    delete threadsList[tid];
     threadsList[tid] = NULL;
     availableThreadId.push(tid);//add it to the available thread list
-	if(tid==runningThreadId){
-        sigprocmask(SIG_UNBLOCK, &timerSet, NULL);
-		//update the total quantoms
-		//updateTotalQuantoms();
-		switchThreads();
-	}
-    sigprocmask(SIG_UNBLOCK, &timerSet, NULL);
+    if(tid==runningThreadId){
+        changeSignalStatus(SIG_UNBLOCK);
+        //update the total quantoms
+        //updateTotalQuantoms();
+        switchThreads();
+    }
+    changeSignalStatus(SIG_UNBLOCK);
     return 0;
 }
 
@@ -286,30 +300,27 @@ int uthread_terminate(int tid){
  * Return value: On success, return 0. On failure, return -1.
 */
 int uthread_block(int tid){
-    sigprocmask(SIG_SETMASK, &timerSet, NULL);
-    Thread* currentThread = getThread(tid);
-    if (currentThread == NULL ){
-        std::cerr << "thread library error: invalid thread id\n";
+    changeSignalStatus(SIG_BLOCK);
+    if (checkTid(tid) == -1 ){
+        std::cerr << "thread library error: invalid thread id in block\n";
         return -1;
     }else if(tid==0){
-	    std::cerr << "thread library error: it's illegal to block the main thread\n";
-	    return -1;
+        std::cerr << "thread library error: it's illegal to block the main thread\n";
+        return -1;
     }
 
-    State threadState = currentThread->getStatus();
-    currentThread->changeStatus(Blocked);
-	//if the thread is blocked while in ready state
+    State threadState = threadsList[tid]->getStatus();
+    threadsList[tid]->changeStatus(Blocked);
+    //if the thread is blocked while in ready state
     if (threadState ==Ready){
-	    readyList.remove(tid);
+        readyList.remove(tid);
     }
     else if(threadState ==Running)
     {
-        sigprocmask(SIG_UNBLOCK, &timerSet, NULL);
-	    //update the total quantoms
-	    //updateTotalQuantoms();
-	    switchThreads();
+        changeSignalStatus(SIG_UNBLOCK);
+        switchThreads();
     }
-    sigprocmask(SIG_UNBLOCK, &timerSet, NULL);
+    changeSignalStatus(SIG_UNBLOCK);
     return 0;
 }
 
@@ -322,21 +333,20 @@ int uthread_block(int tid){
  * Return value: On success, return 0. On failure, return -1.
 */
 int uthread_resume(int tid){
-    sigprocmask(SIG_SETMASK, &timerSet, NULL);
-    Thread* currentThread = getThread(tid);
-    if (currentThread == NULL){
-        std::cerr << "thread library error: invalid thread id\n";
+    changeSignalStatus(SIG_BLOCK);
+    if (checkTid(tid) == -1){
+        std::cerr << "thread library error: invalid thread id in resume\n";
         return -1;
     }
-    if (currentThread->getStatus() == Blocked){
-        if (currentThread->getDependency() == -1){
+    if (threadsList[tid]->getStatus() == Blocked){
+        if (threadsList[tid]->getDependency() == -1){
             updateThreadToReady(tid);
         }
         else {
-            currentThread->changeStatus(Sync);
+            threadsList[tid]->changeStatus(Sync);
         }
     }
-    sigprocmask(SIG_UNBLOCK, &timerSet, NULL);
+    changeSignalStatus(SIG_UNBLOCK);
     return 0;
 }
 
@@ -354,20 +364,19 @@ int uthread_resume(int tid){
  * Return value: On success, return 0. On failure, return -1.
 */
 int uthread_sync(int tid){
-    sigprocmask(SIG_SETMASK, &timerSet, NULL);
-	Thread* currentThread = getThread(tid);
-	if (currentThread == NULL||tid==runningThreadId || tid == 0){
-		std::cerr << "thread library error: invalid thread id\n";
-		return -1;
-	}
-	threadsList[runningThreadId]->changeStatus(Sync);
-	dependOnThread[tid].push_back(runningThreadId);
-	currentThread->setDependency(tid);
-	//update the total quantoms
-	//updateTotalQuantoms();
-	sigprocmask(SIG_UNBLOCK, &timerSet, NULL);
-	switchThreads();
-	return 0;
+    changeSignalStatus(SIG_BLOCK);
+    if (checkTid(tid) == -1||tid==runningThreadId || runningThreadId == 0){
+        std::cerr << "thread library error: invalid thread id in sync\n";
+        return -1;
+    }
+    threadsList[runningThreadId]->changeStatus(Sync);
+    dependOnThread[tid].push_back(runningThreadId);
+    threadsList[runningThreadId]->setDependency(tid);
+    //update the total quantoms
+    //updateTotalQuantoms();
+    changeSignalStatus(SIG_UNBLOCK);
+    switchThreads();
+    return 0;
 }
 
 
@@ -403,11 +412,10 @@ int uthread_get_total_quantums(){
  * Return value: On success, return the number of quantums of the thread with ID tid. On failure, return -1.
 */
 int uthread_get_quantums(int tid){
-    Thread* currentThread = getThread(tid);
-    if (currentThread == NULL){
-        std::cerr << "thread library error: invalid thread id\n";
+    if (checkTid(tid) == -1){
+        std::cerr << "thread library error: invalid thread id in get quantums\n";
         return -1;
     }
-    return currentThread->getRunningTimes();
+    return threadsList[tid]->getRunningTimes();
 }
 

@@ -95,7 +95,7 @@ void switchThreads(){
     if (threadsList[runningThreadId] != NULL)
     {
         int ret_val = sigsetjmp(*(threadsList[runningThreadId]->getEnvironment()), 1);
-        printf("SWITCH: ret_val=%d, running id=%d\n", ret_val, runningThreadId);
+        //printf("SWITCH: ret_val=%d, running id=%d\n", ret_val, runningThreadId);
         if (ret_val == 1)
         {
             return;
@@ -108,6 +108,7 @@ void switchThreads(){
     runningThreadId=readyList.front();
     readyList.pop_front();
     threadsList[runningThreadId]->changeStatus(Running);
+	totalQuantoms++;
     setTimer(quantum_length);
     siglongjmp(*(threadsList[runningThreadId]->getEnvironment()),1);
 
@@ -123,7 +124,7 @@ void timer_handler(int signal)
 	readyList.push_back(runningThreadId);
 	threadsList[runningThreadId]->changeStatus(Ready);
 	//update the total quantoms
-	updateTotalQuantoms();
+	//updateTotalQuantoms();
     switchThreads(); //call switch threads
 }
 
@@ -267,7 +268,7 @@ int uthread_terminate(int tid){
 	if(tid==runningThreadId){
         sigprocmask(SIG_UNBLOCK, &timerSet, NULL);
 		//update the total quantoms
-		updateTotalQuantoms();
+		//updateTotalQuantoms();
 		switchThreads();
 	}
     sigprocmask(SIG_UNBLOCK, &timerSet, NULL);
@@ -305,7 +306,7 @@ int uthread_block(int tid){
     {
         sigprocmask(SIG_UNBLOCK, &timerSet, NULL);
 	    //update the total quantoms
-	    updateTotalQuantoms();
+	    //updateTotalQuantoms();
 	    switchThreads();
     }
     sigprocmask(SIG_UNBLOCK, &timerSet, NULL);
@@ -363,7 +364,7 @@ int uthread_sync(int tid){
 	dependOnThread[tid].push_back(runningThreadId);
 	currentThread->setDependency(tid);
 	//update the total quantoms
-	updateTotalQuantoms();
+	//updateTotalQuantoms();
 	sigprocmask(SIG_UNBLOCK, &timerSet, NULL);
 	switchThreads();
 	return 0;

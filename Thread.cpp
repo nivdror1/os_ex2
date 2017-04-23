@@ -9,8 +9,8 @@
  * @brief a constructor
  * @param tid the id of the thread
  */
-Thread::Thread(int tid, void (*func)(void),int stackSize):_tid(tid),_runningTimes(0),_isDependent(-1)
-		,_currState(Running){
+Thread::Thread(int tid, void (*func)(void),int stackSize):_tid(tid),_runningTimes(0),_currState(Ready)
+		,_isDependent(-1) {
 	_threadStack= new char[stackSize];
 	_sp = (address_t)_threadStack + stackSize - sizeof(address_t);
 	_pc = (address_t)func;

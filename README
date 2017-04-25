@@ -7,6 +7,8 @@ Thread.cpp
 Thread.h
 uthreads.h
 uthreads.cpp
+README
+Makefile
 
 REMARKS:
 These are some remarks that
@@ -15,3 +17,40 @@ about this submission.
 
 ANSWERS:
 
+1) one usage of user level thread is web server, where every request from the server will be a separate thread.
+ This usage allows flexible timing for each request and switching between requests when one request is waiting for another
+  process/input/thread to come, without keep the system in "busy waiting" mode.
+  Since the time we want to dedicate for each request is changeable, we need to use user level thread (that allows such
+  flexibility) over kernel level thread where the programmer has no control on the switching process.
+
+2) advantages:
+ - unlike threads, processes are independent of each other, so if one process (one tab) crashed, the others will not stop.
+ - since in today's websites there is a lot of information (pictures/videos/banners...) that consumes a lot of resources,
+   it is more reasonable to use process since threads have low and limited amount of resources.
+ - many web apps can run in parallel so you can get better responsibility, when in threads you can run only one thread
+ in any time, so things will be slower.
+
+ disadvantages:
+ - if many tabs are open, very large amount of resources is dedicated to chrome browser, which will slow the whole
+ computer down.
+
+3) c)
+when we wrote in the shell the command "kill pid", an interrupt was dispatched from the keyboard to the os,
+which executed the "bin/kill" program. because we didn't call kill with a signal,
+ it took the default signal - SIGTERM. when SIGTERM being sent to a process three different things can happen:
+ - the process may stop immediately
+ - the process may clean up it's data and stop
+ - the process may over look the signal and continue running.
+ it this case the process stopped and then close command happened.
+
+
+
+4) the difference between real time and virtual time is that
+ virtual measures the time was process run in the in cpu(i.e the processor)
+ and real time measures virtual time + overhead.
+
+ examples:
+ for virtual time - in robin round scheduling the process employs time sharing
+ which is giving each thread (kernel or user space) a time to run before switching threads.
+
+ for real time - for any application which a clock is necessary (for an alarm clock or a timer).
